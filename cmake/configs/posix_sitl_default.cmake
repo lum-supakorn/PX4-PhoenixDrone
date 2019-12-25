@@ -71,6 +71,9 @@ set(config_module_list
 	modules/replay
 	modules/simulator
 	#modules/uavcan
+	modules/ts_att_control
+	modules/ts_pos_control
+	modules/ts_path_planner
 
 	#
 	# Estimation modules
