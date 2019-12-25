@@ -66,7 +66,8 @@
 
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/vehicle_rates_setpoint.h>
-#include <uORB/topics/sensor_bias.h>
+#include <uORB/topics/vehicle_attitude.h>
+#include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/actuator_armed.h>
 #include <uORB/topics/parameter_update.h>
@@ -86,6 +87,8 @@
 #include <controllib/block/BlockParam.hpp>
 
 #include <matrix/matrix/math.hpp>
+
+using matrix::wrap_pi;
 
 #define TILT_COS_MAX	0.7f
 #define SIGMA			0.000001f
@@ -147,7 +150,7 @@ private:
 	orb_id_t _attitude_setpoint_id;
 
 	struct vehicle_land_detected_s 			_vehicle_land_detected;	/**< vehicle land detected */
-	struct control_state_s				_ctrl_state;		/**< vehicle attitude */
+	struct vehicle_attitude_s				_ctrl_state;		/**< vehicle attitude */
 	struct vehicle_attitude_setpoint_s		_att_sp;		/**< vehicle attitude setpoint */
 	struct manual_control_setpoint_s		_manual;		/**< r/c channel data */
 	struct vehicle_control_mode_s			_control_mode;		/**< vehicle control mode */
@@ -229,7 +232,7 @@ private:
 		float acc_hor_max;
 		float vel_max_up;
 		float vel_max_down;
-		uint32_t alt_mode;
+		int32_t alt_mode;
 
 
 		int opt_recover;
@@ -278,7 +281,7 @@ private:
 	matrix::Vector3f _vel_sp_prev;
 	matrix::Vector3f _vel_err_d;		/**< derivative of current velocity */
 
-	math::Matrix<3, 3> _R;			/**< rotation matrix from attitude quaternions */
+	matrix::Dcmf _R;			/**< rotation matrix from attitude quaternions */
 	float _yaw;				/**< yaw angle (euler) */
 	bool _in_landing;	/**< the vehicle is in the landing descent */
 	bool _lnd_reached_ground; /**< controller assumes the vehicle has reached the ground after landing */
@@ -591,7 +594,7 @@ TailsitterPositionControl::parameters_update(bool force)
 		_params.tilt_max_land = math::radians(_params.tilt_max_land);
 
 		float v;
-		uint32_t v_i;
+		int32_t v_i;
 		param_get(_params_handles.xy_p, &v);
 		_params.pos_p(0) = v;
 		_params.pos_p(1) = v;
@@ -706,10 +709,10 @@ TailsitterPositionControl::poll_subscriptions()
 //	orb_check(_ctrl_state_sub, &updated);
 //
 //	if (updated) {
-//		orb_copy(ORB_ID(control_state), _ctrl_state_sub, &_ctrl_state);
+//		orb_copy(ORB_ID(vehicle_attitude), _ctrl_state_sub, &_ctrl_state);
 //
 //		/* get current rotation matrix and euler angles from control state quaternions */
-//		math::Quaternion q_att(_ctrl_state.q[0], _ctrl_state.q[1], _ctrl_state.q[2], _ctrl_state.q[3]);
+//		matrix::Quaternion<float> q_att(_ctrl_state.q[0], _ctrl_state.q[1], _ctrl_state.q[2], _ctrl_state.q[3]);
 //		_R = q_att.to_dcm();
 //		matrix::Vector3f euler_angles;
 //		euler_angles = _R.to_euler();
@@ -718,7 +721,7 @@ TailsitterPositionControl::poll_subscriptions()
 //		if (_control_mode.flag_control_manual_enabled) {
 //			if (_heading_reset_counter != _ctrl_state.quat_reset_counter) {
 //				_heading_reset_counter = _ctrl_state.quat_reset_counter;
-//				math::Quaternion delta_q(_ctrl_state.delta_q_reset[0], _ctrl_state.delta_q_reset[1], _ctrl_state.delta_q_reset[2],
+//				matrix::Quaternion<float> delta_q(_ctrl_state.delta_q_reset[0], _ctrl_state.delta_q_reset[1], _ctrl_state.delta_q_reset[2],
 //							 _ctrl_state.delta_q_reset[3]);
 //
 //				// we only extract the heading change from the delta quaternion
@@ -861,7 +864,7 @@ TailsitterPositionControl::update_ref()
 
 		if (_ref_timestamp != 0) {
 			/* reproject position setpoint to new reference */
-			map_projection_project(&_ref_pos, lat_sp, lon_sp, &_pos_sp.data[0], &_pos_sp.data[1]);
+			map_projection_project(&_ref_pos, lat_sp, lon_sp, &_pos_sp(0), &_pos_sp(1));
 			_pos_sp(2) = -(alt_sp - _ref_alt);
 		}
 
@@ -965,8 +968,7 @@ TailsitterPositionControl::control_manual(float dt)
 	}
 
 	/* _req_vel_sp scaled to 0..1, scale it to max speed and rotate around yaw */
-	math::Matrix<3, 3> R_yaw_sp;
-	R_yaw_sp.from_euler(0.0f, 0.0f, _att_sp.yaw_body);
+	matrix::Dcmf R_yaw_sp = matrix::Eulerf(0.0f, 0.0f, _att_sp.yaw_body);
 	matrix::Vector3f req_vel_sp_scaled = R_yaw_sp * req_vel_sp.emult(
 			_params.vel_cruise); // in NED and scaled to actual velocity
 
@@ -1084,14 +1086,14 @@ TailsitterPositionControl::control_non_manual(float dt)
 		control_auto(dt);
 	}
 
-	/* weather-vane mode for vtol: disable yaw control */
+	/* weather-vane mode for vtol: disable yaw control
 	if (_pos_sp_triplet.current.disable_mc_yaw_control == true) {
 		_att_sp.disable_mc_yaw_control = true;
 
 	} else {
-		/* reset in case of setpoint updates */
+		 reset in case of setpoint updates
 		_att_sp.disable_mc_yaw_control = false;
-	}
+	}*/
 
 	// guard against any bad velocity values
 
@@ -1274,15 +1276,15 @@ void
 TailsitterPositionControl::limit_acceleration(float dt)
 {
 	// limit total horizontal acceleration
-	math::Vector<2> acc_hor;
+	matrix::Vector2f acc_hor;
 	acc_hor(0) = (_vel_sp(0) - _vel_sp_prev(0)) / dt;
 	acc_hor(1) = (_vel_sp(1) - _vel_sp_prev(1)) / dt;
 
 	if (acc_hor.length() > _params.acc_hor_max) {
 		acc_hor.normalize();
 		acc_hor *= _params.acc_hor_max;
-		math::Vector<2> vel_sp_hor_prev(_vel_sp_prev(0), _vel_sp_prev(1));
-		math::Vector<2> vel_sp_hor = acc_hor * dt + vel_sp_hor_prev;
+		matrix::Vector2f vel_sp_hor_prev(_vel_sp_prev(0), _vel_sp_prev(1));
+		matrix::Vector2f vel_sp_hor = acc_hor * dt + vel_sp_hor_prev;
 		_vel_sp(0) = vel_sp_hor(0);
 		_vel_sp(1) = vel_sp_hor(1);
 	}
@@ -1369,7 +1371,7 @@ void TailsitterPositionControl::control_auto(float dt)
 		/* project setpoint to local frame */
 		map_projection_project(&_ref_pos,
 				       _pos_sp_triplet.current.lat, _pos_sp_triplet.current.lon,
-				       &curr_sp.data[0], &curr_sp.data[1]);
+				       &curr_sp(0), &curr_sp(1));
 		curr_sp(2) = -(_pos_sp_triplet.current.alt - _ref_alt);
 
 		if (PX4_ISFINITE(curr_sp(0)) &&
@@ -1382,7 +1384,7 @@ void TailsitterPositionControl::control_auto(float dt)
 	if (_pos_sp_triplet.previous.valid) {
 		map_projection_project(&_ref_pos,
 				       _pos_sp_triplet.previous.lat, _pos_sp_triplet.previous.lon,
-				       &prev_sp.data[0], &prev_sp.data[1]);
+				       &prev_sp(0), &prev_sp(1));
 		prev_sp(2) = -(_pos_sp_triplet.previous.alt - _ref_alt);
 
 		if (PX4_ISFINITE(prev_sp(0)) &&
@@ -1435,7 +1437,7 @@ void TailsitterPositionControl::control_auto(float dt)
 						matrix::Vector3f next_sp;
 						map_projection_project(&_ref_pos,
 								       _pos_sp_triplet.next.lat, _pos_sp_triplet.next.lon,
-								       &next_sp.data[0], &next_sp.data[1]);
+								       &next_sp(0), &next_sp(1));
 						next_sp(2) = -(_pos_sp_triplet.next.alt - _ref_alt);
 
 						if ((next_sp - curr_sp).length() > MIN_DIST) {
@@ -1864,7 +1866,7 @@ TailsitterPositionControl::control_position(float dt)
 			/* limit max tilt */
 			if (thr_min >= 0.0f && tilt_max < M_PI_F / 2 - 0.05f) {
 				/* absolute horizontal thrust */
-				float thrust_sp_xy_len = math::Vector<2>(thrust_sp(0), thrust_sp(1)).length();
+				float thrust_sp_xy_len = matrix::Vector2f(thrust_sp(0), thrust_sp(1)).length();
 
 				if (thrust_sp_xy_len > 0.01f) {
 					/* max horizontal thrust for given vertical thrust*/
@@ -1910,7 +1912,7 @@ TailsitterPositionControl::control_position(float dt)
 				} else {
 					/* preserve thrust Z component and lower XY, keeping altitude is more important than position */
 					float thrust_xy_max = sqrtf(thr_max * thr_max - thrust_sp(2) * thrust_sp(2));
-					float thrust_xy_abs = math::Vector<2>(thrust_sp(0), thrust_sp(1)).length();
+					float thrust_xy_abs = matrix::Vector2f(thrust_sp(0), thrust_sp(1)).length();
 					float k = thrust_xy_max / thrust_xy_abs;
 					thrust_sp(0) *= k;
 					thrust_sp(1) *= k;
@@ -2053,8 +2055,8 @@ TailsitterPositionControl::generate_attitude_setpoint(float dt)
 		const float yaw_offset_max = yaw_rate_max / _params.mc_att_yaw_p;
 
 		_att_sp.yaw_sp_move_rate = _manual.r * yaw_rate_max;
-		float yaw_target = _wrap_pi(_att_sp.yaw_body + _att_sp.yaw_sp_move_rate * dt);
-		float yaw_offs = _wrap_pi(yaw_target - _yaw);
+		float yaw_target = wrap_pi(_att_sp.yaw_body + _att_sp.yaw_sp_move_rate * dt);
+		float yaw_offs = wrap_pi(yaw_target - _yaw);
 
 		// If the yaw offset became too big for the system to track stop
 		// shifting it, only allow if it would make the offset smaller again.
@@ -2091,21 +2093,18 @@ TailsitterPositionControl::generate_attitude_setpoint(float dt)
 			// heading of the vehicle.
 
 			// calculate our current yaw error
-			float yaw_error = _wrap_pi(_att_sp.yaw_body - _yaw);
+			float yaw_error = wrap_pi(_att_sp.yaw_body - _yaw);
 
 			// compute the vector obtained by rotating a z unit vector by the rotation
 			// given by the roll and pitch commands of the user
 			matrix::Vector3f zB = {0, 0, 1};
-			math::Matrix<3, 3> R_sp_roll_pitch;
-			R_sp_roll_pitch.from_euler(_att_sp.roll_body, _att_sp.pitch_body, 0);
+			matrix::Dcmf R_sp_roll_pitch = matrix::Eulerf(_att_sp.roll_body, _att_sp.pitch_body, 0.0f);
 			matrix::Vector3f z_roll_pitch_sp = R_sp_roll_pitch * zB;
-
 
 			// transform the vector into a new frame which is rotated around the z axis
 			// by the current yaw error. this vector defines the desired tilt when we look
 			// into the direction of the desired heading
-			math::Matrix<3, 3> R_yaw_correction;
-			R_yaw_correction.from_euler(0.0f, 0.0f, -yaw_error);
+			matrix::Dcmf R_yaw_correction = matrix::Eulerf(0.0f, 0.0f, -yaw_error);
 			z_roll_pitch_sp = R_yaw_correction * z_roll_pitch_sp;
 
 			// use the formula z_roll_pitch_sp = R_tilt * [0;0;1]
@@ -2140,7 +2139,7 @@ TailsitterPositionControl::task_main()
 	 * do subscriptions
 	 */
 	_vehicle_land_detected_sub = orb_subscribe(ORB_ID(vehicle_land_detected));
-	_ctrl_state_sub = orb_subscribe(ORB_ID(control_state));
+	_ctrl_state_sub = orb_subscribe(ORB_ID(vehicle_attitude));
 	_att_sp_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
 	_control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
 	_params_sub = orb_subscribe(ORB_ID(parameter_update));

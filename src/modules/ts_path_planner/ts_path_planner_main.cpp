@@ -134,8 +134,8 @@ TailsitterPathPlanner::task_main()
 		if (_setpoint_updated){
 
 				float dt = (hrt_absolute_time() - _waypoint.start_time)/1e6f;
-				math::Vector<3> next_point = _waypoint.start_point + _waypoint.direction * dt * _waypoint.speed;
-				math::Vector<3> velocity = _waypoint.velocity;
+				matrix::Vector3f next_point = _waypoint.start_point + _waypoint.direction * dt * _waypoint.speed;
+				matrix::Vector3f velocity = _waypoint.velocity;
 
 				if((next_point - _waypoint.end_point).length()< 0.05f){
 					_setpoint_updated = false;
@@ -260,11 +260,11 @@ TailsitterPathPlanner::update_pos_setpoint(int argc, char*argv[]){
 			_waypoint.end_point(0) = strtof(argv[1], 0);
 			_waypoint.end_point(1) = strtof(argv[2], 0);
 			_waypoint.end_point(2) = strtof(argv[3], 0);
-			math::Vector<3> direction = _waypoint.end_point - _waypoint.start_point;
+			matrix::Vector3f direction = _waypoint.end_point - _waypoint.start_point;
 			direction.normalize();
 			_waypoint.direction = direction;
 			_waypoint.yaw = strtof(argv[4], 0) / 180.f * 3.14f;
-			math::Vector<3> velocity = direction * _params.cruise_speed;
+			matrix::Vector3f velocity = direction * _params.cruise_speed;
 
 			for (int i=0; i<3; i++){
 				if (velocity(i) > _params.cruise_speed_max(i) || velocity(i) < -_params.cruise_speed_max(i)){

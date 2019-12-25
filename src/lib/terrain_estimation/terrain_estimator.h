@@ -81,7 +81,7 @@ private:
 	// kalman filter variables
 	matrix::Vector<float, n_x> _x;		// state: ground distance, velocity, accel bias in z direction
 	float  _u_z;			// acceleration in earth z direction
-	matrix::Matrix<float, 3, 3> _P;	// covariance matrix
+	matrix::Dcmf _P;	// covariance matrix
 
 	// timestamps
 	uint64_t _time_last_distance;

@@ -19,6 +19,7 @@
 #include <uORB/topics/parameter_update.h>
 #include <platforms/px4_workqueue.h>
 #include <lib/LoopTimer/LoopTimer.h>
+#include <matrix/matrix/math.hpp>
 
 
 class __EXPORT TailsitterPathPlanner{
@@ -50,7 +51,7 @@ private:
 	struct work_s						_work;
 
 	struct{
-		math::Vector<3>	cruise_speed_max;
+		matrix::Vector3f	cruise_speed_max;
 		float			cruise_speed;
 	}_params;
 
@@ -62,10 +63,10 @@ private:
 
 	struct{
 		uint64_t start_time;
-		math::Vector<3> end_point;
-		math::Vector<3> start_point;
-		math::Vector<3> direction;
-		math::Vector<3> velocity;
+		matrix::Vector3f end_point;
+		matrix::Vector3f start_point;
+		matrix::Vector3f direction;
+		matrix::Vector3f velocity;
 		float speed;
 		float	yaw;
 	}_waypoint;

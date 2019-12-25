@@ -24,7 +24,7 @@
 #include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/actuator_controls.h>
 #include <uORB/topics/vehicle_rates_setpoint.h>
-#include <uORB/topics/sensor_bias.h>
+#include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/actuator_armed.h>
@@ -111,7 +111,7 @@ private:
 	bool		_actuators_0_circuit_breaker_enabled;	/**< circuit breaker to suppress output */
 
 
-	struct control_state_s				_ctrl_state;		/**< control state */
+	struct vehicle_attitude_s				_ctrl_state;		/**< control state */
 	struct vehicle_attitude_setpoint_s	_v_att_sp;			/**< vehicle attitude setpoint */
 	struct vehicle_rates_setpoint_s		_v_rates_sp;		/**< vehicle rates setpoint */
 	struct manual_control_setpoint_s	_manual_control_sp;	/**< manual control setpoint */
@@ -156,8 +156,8 @@ private:
 	float				_thrust_sp;		/**< thrust setpoint */
 	matrix::Vector3f		_att_control;	/**< attitude control vector */
 
-	math::Matrix<3, 3>  _I;				/**< identity matrix */
-	math::Matrix<3, 3>  _J;				/**< Moment of Inertia */
+	matrix::Dcmf  _I;				/**< identity matrix */
+	matrix::Dcmf  _J;				/**< Moment of Inertia */
 
 	struct {
 		param_t roll_p;
@@ -714,12 +714,12 @@ TailsitterAttitudeControl::control_attitude(float dt)
 	_thrust_sp = _v_att_sp.thrust;
 
 	/* construct attitude setpoint rotation matrix */
-	math::Quaternion q_sp(_v_att_sp.q_d[0], _v_att_sp.q_d[1], _v_att_sp.q_d[2], _v_att_sp.q_d[3]);
-	math::Matrix<3, 3> R_sp = q_sp.to_dcm();
+	matrix::Quaternion<float> q_sp(_v_att_sp.q_d[0], _v_att_sp.q_d[1], _v_att_sp.q_d[2], _v_att_sp.q_d[3]);
+	matrix::Dcmf R_sp = q_sp.to_dcm();
 
 	/* get current rotation matrix from control state quaternions */
-	math::Quaternion q_att(_ctrl_state.q[0], _ctrl_state.q[1], _ctrl_state.q[2], _ctrl_state.q[3]);
-	math::Matrix<3, 3> R = q_att.to_dcm();
+	matrix::Quaternion<float> q_att(_ctrl_state.q[0], _ctrl_state.q[1], _ctrl_state.q[2], _ctrl_state.q[3]);
+	matrix::Dcmf R = q_att.to_dcm();
 //	warnx("ROTATION MATRIX Body x: %f, %f, %f",(double) R(0,0),(double) R(1,0),(double) R(2,0));
 //	warnx("ROTATION MATRIX Body y: %f, %f, %f",(double) R(0,1),(double) R(1,1),(double) R(2,1));
 //	warnx("ROTATION MATRIX Body z: %f, %f, %f",(double) R(0,2),(double) R(1,2),(double) R(2,2));
@@ -733,7 +733,7 @@ TailsitterAttitudeControl::control_attitude(float dt)
 	matrix::Vector3f R_sp_z(R_sp(0, 2), R_sp(1, 2), R_sp(2, 2));
 
 	/* axis and sin(angle) of desired rotation */
-	matrix::Vector3f e_R = R.transposed() * (R_z % R_sp_z);
+	matrix::Vector3f e_R = R.transpose() * (R_z % R_sp_z);
 
 	/* calculate angle error */
 	float e_R_z_sin = e_R.length();
@@ -743,7 +743,7 @@ TailsitterAttitudeControl::control_attitude(float dt)
 	float yaw_w = R_sp(2, 2) * R_sp(2, 2);
 
 	/* calculate rotation matrix after roll/pitch only rotation */
-	math::Matrix<3, 3> R_rp;
+	matrix::Dcmf R_rp;
 
 	if (e_R_z_sin > 0.0f) {
 		/* get axis-angle representation */
@@ -753,7 +753,7 @@ TailsitterAttitudeControl::control_attitude(float dt)
 		e_R = e_R_z_axis * e_R_z_angle;
 
 		/* cross product matrix for e_R_axis */
-		math::Matrix<3, 3> e_R_cp;
+		matrix::Dcmf e_R_cp;
 		e_R_cp.zero();
 		e_R_cp(0, 1) = -e_R_z_axis(2);
 		e_R_cp(0, 2) = e_R_z_axis(1);
@@ -778,8 +778,8 @@ TailsitterAttitudeControl::control_attitude(float dt)
 	if (e_R_z_cos < 0.0f) {
 		/* for large thrust vector rotations use another rotation method:
 		 * calculate angle and axis for R -> R_sp rotation directly */
-		math::Quaternion q_error;
-		q_error.from_dcm(R.transposed() * R_sp);
+		matrix::Quaternion<float> q_error;
+		q_error.from_dcm(R.transpose() * R_sp);
 		matrix::Vector3f e_R_d = q_error(0) >= 0.0f ? q_error.imag()  * 2.0f : -q_error.imag() * 2.0f;
 
 		/* use fusion of Z axis based rotation and direct rotation */
@@ -790,9 +790,9 @@ TailsitterAttitudeControl::control_attitude(float dt)
 	/* calculate angular rates setpoint */
 	/* current body angular rates */
 	matrix::Vector3f rates;
-	rates(0) = _ctrl_state.roll_rate;
-	rates(1) = _ctrl_state.pitch_rate;
-	rates(2) = _ctrl_state.yaw_rate;
+	rates(0) = _ctrl_state.rollspeed;
+	rates(1) = _ctrl_state.pitchspeed;
+	rates(2) = _ctrl_state.yawspeed;
 
 	//matrix::Vector3f e_R_d = (e_R - _e_R_prev)/dt;
 
@@ -850,13 +850,13 @@ TailsitterAttitudeControl::control_attitude_rates(float dt)
 
 	/* current body angular rates */
 	matrix::Vector3f rates;
-	rates(0) = _ctrl_state.roll_rate;
-	rates(1) = _ctrl_state.pitch_rate;
-	rates(2) = _ctrl_state.yaw_rate;
+	rates(0) = _ctrl_state.rollspeed;
+	rates(1) = _ctrl_state.pitchspeed;
+	rates(2) = _ctrl_state.yawspeed;
 
 	/* angular rates error */
 	matrix::Vector3f rates_err = _rates_sp - rates;
-	matrix::Vector3f rates_d = (_rates_prev - rates)/dt;
+	// matrix::Vector3f rates_d = (_rates_prev - rates)/dt;
 
 	if (!PX4_ISFINITE(rates_err(0)) && !PX4_ISFINITE(rates_err(1)) && !PX4_ISFINITE(rates_err(2))) _rates_int = _rates_int +  rates_err * dt;
 
@@ -951,7 +951,7 @@ TailsitterAttitudeControl::task_main()
 	 */
 	_v_att_sp_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
 	_v_rates_sp_sub = orb_subscribe(ORB_ID(vehicle_rates_setpoint));
-	_ctrl_state_sub = orb_subscribe(ORB_ID(control_state));
+	_ctrl_state_sub = orb_subscribe(ORB_ID(vehicle_attitude));
 	_v_control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
 	_params_sub = orb_subscribe(ORB_ID(parameter_update));
 	_manual_control_sp_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
@@ -1007,7 +1007,7 @@ TailsitterAttitudeControl::task_main()
 			}
 
 			/* copy attitude and control state topics */
-			orb_copy(ORB_ID(control_state), _ctrl_state_sub, &_ctrl_state);
+			orb_copy(ORB_ID(vehicle_attitude), _ctrl_state_sub, &_ctrl_state);
 
 			/* check for updates in other topics */
 			parameter_update_poll();
@@ -1085,9 +1085,9 @@ TailsitterAttitudeControl::task_main()
 				_actuators.timestamp_sample = _ctrl_state.timestamp;
 
 
-				rate_ctrl_status.roll_rate_integ = _rates_int(0);
-				rate_ctrl_status.pitch_rate_integ = _rates_int(1);
-				rate_ctrl_status.yaw_rate_integ = _rates_int(2);
+				rate_ctrl_status.rollspeed_integ = _rates_int(0);
+				rate_ctrl_status.pitchspeed_integ = _rates_int(1);
+				rate_ctrl_status.yawspeed_integ = _rates_int(2);
 				rate_ctrl_status.timestamp = hrt_absolute_time();
 
 				if (!_actuators_0_circuit_breaker_enabled) {
@@ -1191,9 +1191,9 @@ TailsitterAttitudeControl::task_main()
 						}
 					}
 
-					rate_ctrl_status.roll_rate_integ = _rates_int(0);
-					rate_ctrl_status.pitch_rate_integ = _rates_int(1);
-					rate_ctrl_status.yaw_rate_integ = _rates_int(2);
+					rate_ctrl_status.rollspeed_integ = _rates_int(0);
+					rate_ctrl_status.pitchspeed_integ = _rates_int(1);
+					rate_ctrl_status.yawspeed_integ = _rates_int(2);
 					rate_ctrl_status.timestamp = hrt_absolute_time();
 
 					/* publish controller status */
