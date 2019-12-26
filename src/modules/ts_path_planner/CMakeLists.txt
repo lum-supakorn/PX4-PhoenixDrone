@@ -39,6 +39,7 @@ px4_add_module(
 	SRCS
 		ts_path_planner_main.cpp
 	DEPENDS
+		LoopTimer
 		platforms__common
 	)
 # vim: set noet ft=cmake fenc=utf-8 ff=unix :

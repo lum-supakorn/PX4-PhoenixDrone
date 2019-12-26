@@ -22,7 +22,8 @@ void OnTimer(void *p) {
 //***************************************************************************
 
 LoopTimer::LoopTimer(uint32_t period_us) :
-		_period_us(period_us) {
+		_period_us(period_us) 
+		{
 	sem_init(&_sem_loop_timer, 0, 0);
 
 	memset(&_ol_tick_call, 0, sizeof(_ol_tick_call));
@@ -31,7 +32,8 @@ LoopTimer::LoopTimer(uint32_t period_us) :
 
 }
 
-LoopTimer::~LoopTimer() {
+LoopTimer::~LoopTimer() 
+{
 	/* cancel the call to OnTimer */
 	hrt_cancel(&_ol_tick_call);
 	/* post one more time the semaphore to release sem_wait */
@@ -43,6 +45,7 @@ LoopTimer::~LoopTimer() {
 	sem_destroy(&_sem_loop_timer);
 }
 
-void LoopTimer::wait(void) {
+void LoopTimer::wait(void) 
+{
 	sem_wait(&_sem_loop_timer);
 }
