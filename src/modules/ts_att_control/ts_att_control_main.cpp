@@ -616,7 +616,7 @@ TailsitterAttitudeControl::vehicle_attitude_setpoint_poll()
 	orb_check(_v_att_sp_sub, &updated);
 
 	if (updated) {
-		orb_copy(ORB_ID(vehicle_attitude_setpoint), _v_att_sp_sub, &_v_att_sp);
+		orb_copy(ORB_ID(mc_virtual_attitude_setpoint), _v_att_sp_sub, &_v_att_sp);
 	}
 }
 
@@ -712,6 +712,8 @@ TailsitterAttitudeControl::control_attitude(float dt)
 	vehicle_attitude_setpoint_poll();
 
 	_thrust_sp = _v_att_sp.thrust;
+	//float thrust_setp = _v_att_sp.thrust;
+	//if (_thrust_sp > 0.3f) {PX4_INFO("Thrust setpoint: %f", (double)thrust_setp);};
 
 	/* construct attitude setpoint rotation matrix */
 	matrix::Quaternion<float> q_sp(_v_att_sp.q_d[0], _v_att_sp.q_d[1], _v_att_sp.q_d[2], _v_att_sp.q_d[3]);
@@ -856,7 +858,7 @@ TailsitterAttitudeControl::control_attitude_rates(float dt)
 
 	/* angular rates error */
 	matrix::Vector3f rates_err = _rates_sp - rates;
-	// matrix::Vector3f rates_d = (_rates_prev - rates)/dt;
+	matrix::Vector3f rates_d = (_rates_prev - rates)/dt;
 
 	if (!PX4_ISFINITE(rates_err(0)) && !PX4_ISFINITE(rates_err(1)) && !PX4_ISFINITE(rates_err(2))) _rates_int = _rates_int +  rates_err * dt;
 
@@ -869,7 +871,7 @@ TailsitterAttitudeControl::control_attitude_rates(float dt)
 		_rates_int.zero();
 	}
 
-	matrix::Vector3f att_control1 = (_J * rates_err).edivide(_params.rate_tc) + (_J * _params.rate_i).emult(_rates_int);// + (_J * rates_d).emult(_params.att_d);
+	matrix::Vector3f att_control1 = (_J * rates_err).edivide(_params.rate_tc) + (_J * _params.rate_i).emult(_rates_int) + (_J * rates_d).emult(_params.att_d);
 	matrix::Vector3f att_control2 = rates % (_J * rates);
 
 	_rates_prev = rates;
@@ -949,7 +951,7 @@ TailsitterAttitudeControl::task_main()
 	/*
 	 * do subscriptions
 	 */
-	_v_att_sp_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
+	_v_att_sp_sub = orb_subscribe(ORB_ID(mc_virtual_attitude_setpoint));
 	_v_rates_sp_sub = orb_subscribe(ORB_ID(vehicle_rates_setpoint));
 	_ctrl_state_sub = orb_subscribe(ORB_ID(vehicle_attitude));
 	_v_control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
@@ -1076,7 +1078,7 @@ TailsitterAttitudeControl::task_main()
 				control_attitude_rates(dt);
 
 				/* publish actuator controls */
-				_actuators.control[0] = (PX4_ISFINITE(_att_control(0))) ? _att_control(0) : 0.0f;
+				_actuators.control[0] = (PX4_ISFINITE(_att_control(0))) ? -_att_control(0) : 0.0f;
 				_actuators.control[1] = (PX4_ISFINITE(_att_control(1))) ? _att_control(1) : 0.0f;
 				_actuators.control[2] = (PX4_ISFINITE(_att_control(2))) ? _att_control(2) : 0.0f;
 				_actuators.control[3] = (PX4_ISFINITE(_thrust_sp)) ? _thrust_sp : 0.0f;
@@ -1084,6 +1086,10 @@ TailsitterAttitudeControl::task_main()
 				_actuators.timestamp = hrt_absolute_time();
 				_actuators.timestamp_sample = _ctrl_state.timestamp;
 
+				for (int i = 0; i< 4; i++){
+					//float outputt = _actuators.control[i];
+					//warnx("outputs %d: %f\n", i, (double) outputt);
+				}
 
 				rate_ctrl_status.rollspeed_integ = _rates_int(0);
 				rate_ctrl_status.pitchspeed_integ = _rates_int(1);
@@ -1122,8 +1128,15 @@ TailsitterAttitudeControl::task_main()
 				momentum_ref(1) = _actuators.control[1];
 				momentum_ref(2) = _actuators.control[2];
 
+				for (int i = 0; i< 4; i++){
+					float outputt = _actuators.control[i];
+					warnx("outputtttt %d: %f", i, (double) outputt);
+				}
 
 				_ts_rate_control->mix(_actuators.control[3], momentum_ref, outputs);
+				for (int i = 0; i< 4; i++){
+					//warnx("outputs %d: %f\n", i, (double) outputs[i]);
+				}
 			}
 
 			if(sitl_enabled){
@@ -1134,9 +1147,10 @@ TailsitterAttitudeControl::task_main()
 				_actuator_outputs.output[4] = (PX4_ISFINITE(outputs[2])) ? outputs[2] : 0.0f;
 				_actuator_outputs.output[5] = (PX4_ISFINITE(outputs[3])) ? outputs[3] : 0.0f;
 
-	//			for (int i = 0; i< 4; i++){
-	//				warnx("outputs %d: %f\n", i, (double) outputs[i]);
-	//			}
+				for (int i = 0; i< 6; i++){
+					warnx("outputs %d: %f", i, (double) _actuator_outputs.output[i]);
+				}
+
 				if (_actuator_outputs_pub != nullptr) {
 					orb_publish(ORB_ID(ts_actuator_outputs_virtual), _actuator_outputs_pub, &_actuator_outputs);
 
