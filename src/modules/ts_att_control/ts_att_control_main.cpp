@@ -88,7 +88,7 @@ private:
 	bool	_task_should_exit;		/**< if true, task_main() should exit */
 	int		_control_task;			/**< task handle */
 
-	int		_ctrl_state_sub;		/**< control state subscription */
+	int		_v_att_sub;		/**< control state subscription */
 	int		_v_att_sp_sub;			/**< vehicle attitude setpoint subscription */
 	int		_v_rates_sp_sub;		/**< vehicle rates setpoint subscription */
 	int		_v_control_mode_sub;	/**< vehicle control mode subscription */
@@ -111,7 +111,7 @@ private:
 	bool		_actuators_0_circuit_breaker_enabled;	/**< circuit breaker to suppress output */
 
 
-	struct vehicle_attitude_s				_ctrl_state;		/**< control state */
+	struct vehicle_attitude_s				_v_att;		/**< control state */
 	struct vehicle_attitude_setpoint_s	_v_att_sp;			/**< vehicle attitude setpoint */
 	struct vehicle_rates_setpoint_s		_v_rates_sp;		/**< vehicle rates setpoint */
 	struct manual_control_setpoint_s	_manual_control_sp;	/**< manual control setpoint */
@@ -330,7 +330,7 @@ TailsitterAttitudeControl::TailsitterAttitudeControl() :
 	_control_task(-1),
 
 	/* subscriptions */
-	_ctrl_state_sub(-1),
+	_v_att_sub(-1),
 	_v_att_sp_sub(-1),
 	_v_control_mode_sub(-1),
 	_params_sub(-1),
@@ -348,7 +348,7 @@ TailsitterAttitudeControl::TailsitterAttitudeControl() :
 	_actuators_id(0),
 
 	_actuators_0_circuit_breaker_enabled(false),
-	_ctrl_state{},
+	_v_att{},
 	_v_att_sp{},
 	_v_rates_sp{},
 	_manual_control_sp{},
@@ -720,7 +720,7 @@ TailsitterAttitudeControl::control_attitude(float dt)
 	matrix::Dcmf R_sp = q_sp.to_dcm();
 
 	/* get current rotation matrix from control state quaternions */
-	matrix::Quaternion<float> q_att(_ctrl_state.q[0], _ctrl_state.q[1], _ctrl_state.q[2], _ctrl_state.q[3]);
+	matrix::Quaternion<float> q_att(_v_att.q[0], _v_att.q[1], _v_att.q[2], _v_att.q[3]);
 	matrix::Dcmf R = q_att.to_dcm();
 //	warnx("ROTATION MATRIX Body x: %f, %f, %f",(double) R(0,0),(double) R(1,0),(double) R(2,0));
 //	warnx("ROTATION MATRIX Body y: %f, %f, %f",(double) R(0,1),(double) R(1,1),(double) R(2,1));
@@ -792,9 +792,9 @@ TailsitterAttitudeControl::control_attitude(float dt)
 	/* calculate angular rates setpoint */
 	/* current body angular rates */
 	matrix::Vector3f rates;
-	rates(0) = _ctrl_state.rollspeed;
-	rates(1) = _ctrl_state.pitchspeed;
-	rates(2) = _ctrl_state.yawspeed;
+	rates(0) = _v_att.rollspeed;
+	rates(1) = _v_att.pitchspeed;
+	rates(2) = _v_att.yawspeed;
 
 	//matrix::Vector3f e_R_d = (e_R - _e_R_prev)/dt;
 
@@ -852,9 +852,9 @@ TailsitterAttitudeControl::control_attitude_rates(float dt)
 
 	/* current body angular rates */
 	matrix::Vector3f rates;
-	rates(0) = _ctrl_state.rollspeed;
-	rates(1) = _ctrl_state.pitchspeed;
-	rates(2) = _ctrl_state.yawspeed;
+	rates(0) = _v_att.rollspeed;
+	rates(1) = _v_att.pitchspeed;
+	rates(2) = _v_att.yawspeed;
 
 	/* angular rates error */
 	matrix::Vector3f rates_err = _rates_sp - rates;
@@ -953,7 +953,7 @@ TailsitterAttitudeControl::task_main()
 	 */
 	_v_att_sp_sub = orb_subscribe(ORB_ID(mc_virtual_attitude_setpoint));
 	_v_rates_sp_sub = orb_subscribe(ORB_ID(vehicle_rates_setpoint));
-	_ctrl_state_sub = orb_subscribe(ORB_ID(vehicle_attitude));
+	_v_att_sub = orb_subscribe(ORB_ID(vehicle_attitude));
 	_v_control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
 	_params_sub = orb_subscribe(ORB_ID(parameter_update));
 	_manual_control_sp_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
@@ -971,7 +971,7 @@ TailsitterAttitudeControl::task_main()
 	/* wakeup source: vehicle attitude */
 	px4_pollfd_struct_t fds[1];
 
-	fds[0].fd = _ctrl_state_sub;
+	fds[0].fd = _v_att_sub;
 	fds[0].events = POLLIN;
 
 	while (!_task_should_exit) {
@@ -1009,7 +1009,7 @@ TailsitterAttitudeControl::task_main()
 			}
 
 			/* copy attitude and control state topics */
-			orb_copy(ORB_ID(vehicle_attitude), _ctrl_state_sub, &_ctrl_state);
+			orb_copy(ORB_ID(vehicle_attitude), _v_att_sub, &_v_att);
 
 			/* check for updates in other topics */
 			parameter_update_poll();
@@ -1084,7 +1084,7 @@ TailsitterAttitudeControl::task_main()
 				_actuators.control[3] = (PX4_ISFINITE(_thrust_sp)) ? _thrust_sp : 0.0f;
 				_actuators.control[7] = _v_att_sp.landing_gear;
 				_actuators.timestamp = hrt_absolute_time();
-				_actuators.timestamp_sample = _ctrl_state.timestamp;
+				_actuators.timestamp_sample = _v_att.timestamp;
 
 				for (int i = 0; i< 4; i++){
 					//float outputt = _actuators.control[i];
@@ -1129,8 +1129,8 @@ TailsitterAttitudeControl::task_main()
 				momentum_ref(2) = _actuators.control[2];
 
 				for (int i = 0; i< 4; i++){
-					float outputt = _actuators.control[i];
-					warnx("outputtttt %d: %f", i, (double) outputt);
+					//float outputt = _actuators.control[i];
+					//warnx("outputtttt %d: %f", i, (double) outputt);
 				}
 
 				_ts_rate_control->mix(_actuators.control[3], momentum_ref, outputs);
@@ -1148,7 +1148,7 @@ TailsitterAttitudeControl::task_main()
 				_actuator_outputs.output[5] = (PX4_ISFINITE(outputs[3])) ? outputs[3] : 0.0f;
 
 				for (int i = 0; i< 6; i++){
-					warnx("outputs %d: %f", i, (double) _actuator_outputs.output[i]);
+					//warnx("outputs %d: %f", i, (double) _actuator_outputs.output[i]);
 				}
 
 				if (_actuator_outputs_pub != nullptr) {
@@ -1192,7 +1192,7 @@ TailsitterAttitudeControl::task_main()
 					_actuators.control[2] = 0.0f;
 					_actuators.control[3] = 0.0f;
 					_actuators.timestamp = hrt_absolute_time();
-					_actuators.timestamp_sample = _ctrl_state.timestamp;
+					_actuators.timestamp_sample = _v_att.timestamp;
 
 					if (!_actuators_0_circuit_breaker_enabled) {
 						if (_actuators_0_pub != nullptr) {

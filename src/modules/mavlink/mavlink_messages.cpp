@@ -2322,7 +2322,7 @@ private:
 
 protected:
 	explicit MavlinkStreamServoOutputRaw(Mavlink *mavlink) : MavlinkStream(mavlink),
-		_act_sub(_mavlink->add_orb_subscription(ORB_ID(actuator_outputs), N)),
+		_act_sub(_mavlink->add_orb_subscription(ORB_ID(ts_actuator_outputs_virtual), N)),
 		_act_time(0)
 	{}
 
