@@ -871,7 +871,8 @@ TailsitterAttitudeControl::control_attitude_rates(float dt)
 		_rates_int.zero();
 	}
 
-	matrix::Vector3f att_control1 = (_J * rates_err).edivide(_params.rate_tc) + (_J * _params.rate_i).emult(_rates_int) + (_J * rates_d).emult(_params.att_d);
+	matrix::Vector3f att_control1 = (_J * rates_err).edivide(_params.rate_tc) + (_J * _params.rate_i).emult(_rates_int) 
+									 + (_J * rates_d).emult(_params.att_d);
 	matrix::Vector3f att_control2 = rates % (_J * rates);
 
 	_rates_prev = rates;
@@ -883,14 +884,14 @@ TailsitterAttitudeControl::control_attitude_rates(float dt)
 	for (int i=0; i<3; i++){
 		float diff = _att_control(i) - _params.rate_max(i);
 		if(diff > 0){
-			warnx("Rate %d hit upper bound", i, (double) _params.rate_max(i));
+			//warnx("Rate %d hit upper bound", i, (double) _params.rate_max(i));
 			_att_control(i) = _params.rate_max(i);
 		}
 
 		diff = _att_control(i) + _params.rate_max(i);
 
 		if(diff < 0){
-			warnx("Rate %d hits lower bound %f", i, (double) -_params.rate_max(i));
+			//warnx("Rate %d hits lower bound %f", i, (double) -_params.rate_max(i));
 			_att_control(i) = -_params.rate_max(i);
 		}
 	}
@@ -1135,17 +1136,17 @@ TailsitterAttitudeControl::task_main()
 
 				_ts_rate_control->mix(_actuators.control[3], momentum_ref, outputs);
 				for (int i = 0; i< 4; i++){
-					//warnx("outputs %d: %f\n", i, (double) outputs[i]);
+					//warnx("outputs %d: %f", i, (double) outputs[i]);
 				}
 			}
 
 			if(sitl_enabled){
 				_actuator_outputs.noutputs = 6;
 				_actuator_outputs.timestamp = hrt_absolute_time();
-				_actuator_outputs.output[0] = (PX4_ISFINITE(outputs[0])) ? outputs[0] : 0.0f;
-				_actuator_outputs.output[1] = (PX4_ISFINITE(outputs[1])) ? outputs[1] : 0.0f;
-				_actuator_outputs.output[4] = (PX4_ISFINITE(outputs[2])) ? outputs[2] : 0.0f;
-				_actuator_outputs.output[5] = (PX4_ISFINITE(outputs[3])) ? outputs[3] : 0.0f;
+				_actuator_outputs.output[0] = (PX4_ISFINITE(outputs[0])) ? outputs[0]*1000.f : 0.0f;
+				_actuator_outputs.output[1] = (PX4_ISFINITE(outputs[1])) ? outputs[1]*1000.f : 0.0f;
+				_actuator_outputs.output[4] = (PX4_ISFINITE(outputs[2])) ? outputs[2]*10 : 0.0f;
+				_actuator_outputs.output[5] = (PX4_ISFINITE(outputs[3])) ? outputs[3]*10 : 0.0f;
 
 				for (int i = 0; i< 6; i++){
 					//warnx("outputs %d: %f", i, (double) _actuator_outputs.output[i]);
