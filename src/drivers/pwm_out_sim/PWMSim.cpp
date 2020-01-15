@@ -42,10 +42,10 @@ PWMSim::PWMSim() :
 		_pwm_max[i] = PWM_SIM_PWM_MAX_MAGIC;
 	}
 
-	_control_topics[0] = ORB_ID(actuator_controls_0);//ORB_ID(ts_actuator_outputs_virtual);
-	//_control_topics[1] = ORB_ID(actuator_controls_1);
-	//_control_topics[2] = ORB_ID(actuator_controls_2);
-	//_control_topics[3] = ORB_ID(actuator_controls_3);
+	_control_topics[0] = ORB_ID(actuator_controls_0);
+	_control_topics[1] = ORB_ID(actuator_controls_1);
+	_control_topics[2] = ORB_ID(actuator_controls_2);
+	_control_topics[3] = ORB_ID(actuator_controls_3);
 
 	for (unsigned i = 0; i < actuator_controls_s::NUM_ACTUATOR_CONTROL_GROUPS; i++) {
 		_control_subs[i] = -1;
@@ -162,7 +162,7 @@ PWMSim::run()
 	_armed_sub = orb_subscribe(ORB_ID(actuator_armed));
 
 	/* advertise the mixed control outputs, insist on the first group output */
-	_outputs_pub = orb_advertise(ORB_ID(ts_actuator_outputs_virtual), &_actuator_outputs);
+	_outputs_pub = orb_advertise(ORB_ID(actuator_outputs), &_actuator_outputs);
 
 	update_params();
 	int params_sub = orb_subscribe(ORB_ID(parameter_update));
@@ -249,14 +249,12 @@ PWMSim::run()
 			/* iterate actuators */
 			for (unsigned i = 0; i < num_outputs; i++) {
 				/* last resort: catch NaN, INF and out-of-band errors */
-				if (i < _actuator_outputs.noutputs) {//&&
-				//    PX4_ISFINITE(_actuator_outputs.output[i]) &&
-				//    _actuator_outputs.output[i] >= -1.0f &&
-				//    _actuator_outputs.output[i] <= 1.0f) {
+				if (i < _actuator_outputs.noutputs &&
+				    PX4_ISFINITE(_actuator_outputs.output[i]) &&
+				    _actuator_outputs.output[i] >= -1.0f &&
+				    _actuator_outputs.output[i] <= 1.0f) {
 					/* scale for PWM output 1000 - 2000us */
 					_actuator_outputs.output[i] = 1500 + (500 * _actuator_outputs.output[i]);
-					//_actuator_outputs.output[4] = 1200;
-					//_actuator_outputs.output[5] = 1200; 
 
 					if (_actuator_outputs.output[i] > _pwm_max[i]) {
 						_actuator_outputs.output[i] = _pwm_max[i];

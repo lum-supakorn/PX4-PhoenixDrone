@@ -712,9 +712,7 @@ TailsitterAttitudeControl::control_attitude(float dt)
 	vehicle_attitude_setpoint_poll();
 
 	_thrust_sp = _v_att_sp.thrust;
-	//float thrust_setp = _v_att_sp.thrust;
-	//if (_thrust_sp > 0.3f) {PX4_INFO("Thrust setpoint: %f", (double)thrust_setp);};
-
+	
 	/* construct attitude setpoint rotation matrix */
 	matrix::Quaternion<float> q_sp(_v_att_sp.q_d[0], _v_att_sp.q_d[1], _v_att_sp.q_d[2], _v_att_sp.q_d[3]);
 	matrix::Dcmf R_sp = q_sp.to_dcm();
@@ -1079,18 +1077,13 @@ TailsitterAttitudeControl::task_main()
 				control_attitude_rates(dt);
 
 				/* publish actuator controls */
-				_actuators.control[0] = (PX4_ISFINITE(_att_control(0))) ? -_att_control(0) : 0.0f;
+				_actuators.control[0] = (PX4_ISFINITE(_att_control(0))) ? _att_control(0) : 0.0f;
 				_actuators.control[1] = (PX4_ISFINITE(_att_control(1))) ? _att_control(1) : 0.0f;
 				_actuators.control[2] = (PX4_ISFINITE(_att_control(2))) ? _att_control(2) : 0.0f;
 				_actuators.control[3] = (PX4_ISFINITE(_thrust_sp)) ? _thrust_sp : 0.0f;
 				_actuators.control[7] = _v_att_sp.landing_gear;
 				_actuators.timestamp = hrt_absolute_time();
 				_actuators.timestamp_sample = _v_att.timestamp;
-
-				for (int i = 0; i< 4; i++){
-					//float outputt = _actuators.control[i];
-					//warnx("outputs %d: %f\n", i, (double) outputt);
-				}
 
 				rate_ctrl_status.rollspeed_integ = _rates_int(0);
 				rate_ctrl_status.pitchspeed_integ = _rates_int(1);
@@ -1129,28 +1122,17 @@ TailsitterAttitudeControl::task_main()
 				momentum_ref(1) = _actuators.control[1];
 				momentum_ref(2) = _actuators.control[2];
 
-				for (int i = 0; i< 4; i++){
-					//float outputt = _actuators.control[i];
-					//warnx("outputtttt %d: %f", i, (double) outputt);
-				}
-
 				_ts_rate_control->mix(_actuators.control[3], momentum_ref, outputs);
-				for (int i = 0; i< 4; i++){
-					//warnx("outputs %d: %f", i, (double) outputs[i]);
-				}
+
 			}
 
 			if(sitl_enabled){
 				_actuator_outputs.noutputs = 6;
 				_actuator_outputs.timestamp = hrt_absolute_time();
-				_actuator_outputs.output[0] = (PX4_ISFINITE(outputs[0])) ? outputs[0]*1000.f : 0.0f;
-				_actuator_outputs.output[1] = (PX4_ISFINITE(outputs[1])) ? outputs[1]*1000.f : 0.0f;
-				_actuator_outputs.output[4] = (PX4_ISFINITE(outputs[2])) ? outputs[2]*10 : 0.0f;
-				_actuator_outputs.output[5] = (PX4_ISFINITE(outputs[3])) ? outputs[3]*10 : 0.0f;
-
-				for (int i = 0; i< 6; i++){
-					//warnx("outputs %d: %f", i, (double) _actuator_outputs.output[i]);
-				}
+				_actuator_outputs.output[0] = (PX4_ISFINITE(outputs[0])) ? outputs[0] : 0.0f;
+				_actuator_outputs.output[1] = (PX4_ISFINITE(outputs[1])) ? outputs[1] : 0.0f;
+				_actuator_outputs.output[4] = (PX4_ISFINITE(outputs[2])) ? outputs[2] : 0.0f;
+				_actuator_outputs.output[5] = (PX4_ISFINITE(outputs[3])) ? outputs[3] : 0.0f;
 
 				if (_actuator_outputs_pub != nullptr) {
 					orb_publish(ORB_ID(ts_actuator_outputs_virtual), _actuator_outputs_pub, &_actuator_outputs);

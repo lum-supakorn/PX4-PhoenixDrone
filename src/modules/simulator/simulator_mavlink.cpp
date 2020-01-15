@@ -128,21 +128,15 @@ void Simulator::pack_actuator_message(mavlink_hil_actuator_controls_t &msg, unsi
 			//if (_actuators[index].output[i] > PWM_DEFAULT_MIN / 2) {
 				if (i < n) {
 					/* scale PWM out PWM_DEFAULT_MIN..PWM_DEFAULT_MAX us to 0..1 for rotors */
-					//float outputt = _actuators[index].output[i];
-					//warnx("Output[%d]: %f", i, (double)outputt);
-					msg.controls[i] = (_actuators[index].output[i] - PWM_DEFAULT_MIN) / (PWM_DEFAULT_MAX - PWM_DEFAULT_MIN);
-					//msg.controls[i] = _actuators[index].output[i];
-					//outputt = msg.controls[i];
-					//warnx("Output[%d]: %f", i, (double)outputt);
+					
+					//msg.controls[i] = (_actuators[index].output[i] - PWM_DEFAULT_MIN) / (PWM_DEFAULT_MAX - PWM_DEFAULT_MIN);
+					msg.controls[i] = _actuators[index].output[i];
 
 				} else {
 					/* scale PWM out PWM_DEFAULT_MIN..PWM_DEFAULT_MAX us to -1..1 for other channels */
-					//float outputt = _actuators[index].output[i];
-					//warnx("Output[%d]: %f", i, (double)outputt);
-					msg.controls[i] = (_actuators[index].output[i] - pwm_center) / ((PWM_DEFAULT_MAX - PWM_DEFAULT_MIN) / 2);
-					//msg.controls[i] = _actuators[index].output[i];
-					//outputt = msg.controls[i];
-					//warnx("Output[%d]: %f", i, (double)outputt);
+					//msg.controls[i] = (_actuators[index].output[i] - pwm_center) / ((PWM_DEFAULT_MAX - PWM_DEFAULT_MIN) / 2);
+					msg.controls[i] = _actuators[index].output[i];
+					
 				}
 
 			} else {

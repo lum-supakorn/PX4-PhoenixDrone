@@ -650,6 +650,7 @@ void Logger::add_default_topics()
 
 #ifdef CONFIG_ARCH_BOARD_SITL
 	add_topic("actuator_armed");
+	add_topic("ts_actuator_outputs_virtual", 100);
 	add_topic("actuator_controls_virtual_fw");
 	add_topic("actuator_controls_virtual_mc");
 	add_topic("commander_state");

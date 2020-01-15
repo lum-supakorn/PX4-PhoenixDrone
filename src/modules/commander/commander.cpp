@@ -377,7 +377,7 @@ int commander_main(int argc, char *argv[])
 		return 0;
 	}
 
-	if (!strcmp(argv[1], "t")){//takeoff")) {
+	if (!strcmp(argv[1], "takeoff")) {
 
 		/* see if we got a home position */
 		if (status_flags.condition_local_position_valid) {
