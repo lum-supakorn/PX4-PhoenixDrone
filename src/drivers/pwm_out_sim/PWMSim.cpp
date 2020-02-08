@@ -246,7 +246,7 @@ PWMSim::run()
 				}
 			}
 
-			/* iterate actuators */
+			/* iterate actuators, num_outputs is equal num of actuators in .mix file*/
 			for (unsigned i = 0; i < num_outputs; i++) {
 				/* last resort: catch NaN, INF and out-of-band errors */
 				if (i < _actuator_outputs.noutputs &&

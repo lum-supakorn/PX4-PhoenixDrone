@@ -65,6 +65,7 @@ param set MPC_ACC_HOR_MAX 1
 param set MPC_TILTMAX_AIR 30
 param set MPC_THR_MAX 10
 param set LPE_FUSION 0
+param set VT_ELEV_MC_LOCK 0
 replay tryapplyparams
 simulator start -s
 #####rgbledsim start
@@ -76,7 +77,9 @@ adcsim start
 gpssim start
 measairspeedsim start
 pwm_out_sim mode_pwm
-ts_att_control start gazebo
+#ts_att_control start gazebo
+vtol_att_control start
+mc_att_control start
 ts_path_planner start
 sleep 1
 sensors start

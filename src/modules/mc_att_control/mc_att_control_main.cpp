@@ -749,6 +749,11 @@ MulticopterAttitudeControl::run()
 				control_attitude_rates(dt);
 
 				/* publish actuator controls */
+				// note x y z axis in gazebo(red green blue) is wierd, so be aware.
+				// _actuators.control[0] positive for rotate right hand role about +x axis
+				// _actuators.control[1] positive for rotate right hand role about -y axis
+				// _actuators.control[2] positive for rotate right hand role about -z axis
+
 				_actuators.control[0] = (PX4_ISFINITE(_att_control(0))) ? _att_control(0) : 0.0f;
 				_actuators.control[1] = (PX4_ISFINITE(_att_control(1))) ? _att_control(1) : 0.0f;
 				_actuators.control[2] = (PX4_ISFINITE(_att_control(2))) ? _att_control(2) : 0.0f;
