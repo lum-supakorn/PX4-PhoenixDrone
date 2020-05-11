@@ -80,7 +80,7 @@ pwm_out_sim mode_pwm
 #ts_att_control start gazebo
 vtol_att_control start
 mc_att_control start
-ts_path_planner start
+#ts_path_planner start
 sleep 1
 sensors start
 commander start

@@ -2511,7 +2511,7 @@ private:
 protected:
 	explicit MavlinkStreamHILActuatorControls(Mavlink *mavlink) : MavlinkStream(mavlink),
 		_status_sub(_mavlink->add_orb_subscription(ORB_ID(vehicle_status))),
-		_act_sub(_mavlink->add_orb_subscription(ORB_ID(ts_actuator_outputs_virtual))),
+		_act_sub(_mavlink->add_orb_subscription(ORB_ID(actuator_outputs))),
 		_act_time(0)
 	{}
 
